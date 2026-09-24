@@ -106,11 +106,11 @@ a {
 }
 
 .button:hover,
-.button:focus {
+.button:focus-visible {
   background: var(--primary-dark);
 }
 
-.button:focus {
+.button:focus-visible {
   outline: 3px solid #ffffff;
   outline-offset: 3px;
   box-shadow: 0 0 0 6px rgba(11, 95, 255, 0.35);
