@@ -1,0 +1,9 @@
+{
+  "name": "Liberia Online Library",
+  "short_name": "Liberia Library",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fbf7ef",
+  "theme_color": "#0b2a5b",
+  "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}
