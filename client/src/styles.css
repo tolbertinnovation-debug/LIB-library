@@ -3311,3 +3311,126 @@ a.tile:hover {
   color: #fff !important;
   font-weight: 700;
 }
+
+/* ─── Listen (read aloud) ─────────────────────────────────────────────── */
+.listen-btn {
+  margin-top: 8px;
+}
+.listen-librivox {
+  display: block;
+  text-align: center;
+  margin-top: 10px;
+}
+.reader-content .r-speaking {
+  background: color-mix(in srgb, var(--r-mark) 45%, transparent);
+  box-shadow: 0 0 0 0.35em color-mix(in srgb, var(--r-mark) 45%, transparent);
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+.reader-content [data-p],
+.reader-content .reader-section-title {
+  scroll-margin: 30vh;
+}
+.listen-bar {
+  position: fixed;
+  z-index: 35;
+  left: 10px;
+  right: 10px;
+  margin: 0 auto;
+  max-width: 760px;
+  bottom: calc(46px + env(safe-area-inset-bottom));
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  background: var(--r-bg);
+  border: 1px solid var(--r-line);
+  border-radius: 20px;
+  box-shadow: 0 16px 40px -16px rgb(0 0 0 / 0.45);
+  font-family: var(--sans);
+  color: var(--r-ink);
+  animation: toast-in 0.2s ease-out;
+}
+.listen-main {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.listen-play {
+  width: 50px;
+  height: 50px;
+  border-radius: 999px;
+  border: 0;
+  background: var(--r-ink);
+  color: var(--r-bg);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.listen-play svg {
+  fill: currentColor;
+}
+.listen-status {
+  flex: 1;
+  min-width: 140px;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+  font-size: 0.8rem;
+  color: var(--r-muted);
+}
+.listen-status strong {
+  color: var(--r-ink);
+  font-size: 0.92rem;
+}
+.listen-options {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.listen-options select {
+  min-height: 34px;
+  width: auto;
+  padding: 4px 28px 4px 10px;
+  font-size: 0.85rem;
+  border-radius: 999px;
+  background-color: transparent;
+  border-color: var(--r-line);
+  color: var(--r-ink);
+  background-position: right 8px center;
+}
+.listen-voice select {
+  max-width: 170px;
+}
+.listen-options .btn.on {
+  border-color: var(--r-accent);
+}
+.listen-note {
+  flex: 1;
+  margin: 0;
+  font-size: 0.9rem;
+}
+.reader-foot.with-player {
+  transform: none;
+}
+@media (max-width: 600px) {
+  .listen-bar {
+    border-radius: 16px;
+    gap: 8px;
+  }
+  .listen-status {
+    order: 3;
+    flex-basis: 100%;
+    text-align: center;
+  }
+  .listen-options {
+    margin-left: auto;
+  }
+  .listen-voice select {
+    max-width: 120px;
+  }
+}
+.reader-listening .reader-main {
+  padding-bottom: 240px;
+}

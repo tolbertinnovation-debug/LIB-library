@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { del, get, patch, post, put } from '../api';
 import { useAuth } from '../auth';
 import { Icon } from '../components/Icon';
+import { ReadAloudBar, canSpeak } from '../components/ReadAloud';
 import { useApi, useDebounced, useDocumentTitle, useStoredState, readStorage, writeStorage, invalidate } from '../hooks';
 import { IS_STATIC, NO_SERVER_MESSAGE } from '../staticApi';
 import { useToast } from '../toast';
@@ -106,6 +107,8 @@ export default function Reader() {
 
   const pendingPosition = useRef<number | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  const [listening, setListening] = useState(() => params.get('listen') === '1');
+  const autoListen = useRef(params.get('listen') === '1');
   const lastSaved = useRef({ at: 0, idx: -1, pos: -1 });
   const activeMinutes = useRef(0);
   const lastActivity = useRef(Date.now());
@@ -163,6 +166,7 @@ export default function Reader() {
         const n = new URLSearchParams(p);
         n.set('s', String(idx));
         n.delete('p');
+        n.delete('listen');
         return n;
       },
       { replace: true },
@@ -339,6 +343,7 @@ export default function Reader() {
       if (e.key === 'ArrowRight' && idx !== null) goTo(idx + 1);
       else if (e.key === 'ArrowLeft' && idx !== null) goTo(idx - 1);
       else if (e.key === 'b') addBookmark();
+      else if (e.key === 'l' && canSpeak) setListening((l) => !l);
       else if (e.key === 't') setPanel((p) => (p === 'toc' ? null : 'toc'));
       else if (e.key === '/' || e.key === 'f') {
         e.preventDefault();
@@ -373,7 +378,7 @@ export default function Reader() {
   const sectionBookmarks = bookmarks.filter((b) => b.sectionIdx === idx);
 
   return (
-    <div className={`reader reader-${s.theme} reader-font-${s.font} ${s.justify ? 'reader-justify' : ''}`} style={style}>
+    <div className={`reader reader-${s.theme} reader-font-${s.font} ${s.justify ? 'reader-justify' : ''} ${listening ? 'reader-listening' : ''}`} style={style}>
       <header className={`reader-bar ${chromeVisible || panel ? '' : 'hidden'}`}>
         <Link to={`/books/${slug}`} className="icon-btn" aria-label="Back to book page">
           <Icon name="arrowLeft" />
@@ -383,6 +388,11 @@ export default function Reader() {
           <span>{section?.title ?? ''}</span>
         </div>
         <div className="reader-bar-actions">
+          {canSpeak && (
+            <button className={`icon-btn ${listening ? 'on' : ''}`} onClick={() => setListening((l) => !l)} aria-label="Listen — read aloud (l)" title="Listen — read aloud (l)" aria-pressed={listening}>
+              <Icon name="headphones" />
+            </button>
+          )}
           <button className={`icon-btn ${panel === 'toc' ? 'on' : ''}`} onClick={() => setPanel(panel === 'toc' ? null : 'toc')} aria-label="Contents (t)" title="Contents (t)">
             <Icon name="list" />
           </button>
@@ -506,7 +516,25 @@ export default function Reader() {
         )}
       </main>
 
-      <footer className={`reader-foot ${chromeVisible || panel ? '' : 'hidden'}`}>
+      {listening && book && (
+        <ReadAloudBar
+          containerRef={contentRef}
+          sectionKey={section ? `${slug}:${section.idx}` : null}
+          lang={book.language}
+          title={book.title}
+          author={book.author}
+          sectionTitle={section?.title ?? ''}
+          hasNext={!isLast}
+          autoStart={autoListen.current}
+          onNeedNext={() => idx !== null && goTo(idx + 1)}
+          onClose={() => {
+            autoListen.current = false;
+            setListening(false);
+          }}
+        />
+      )}
+
+      <footer className={`reader-foot ${chromeVisible || panel ? '' : 'hidden'} ${listening ? 'with-player' : ''}`}>
         <span>
           {idx !== null && count > 0 && `Part ${idx + 1} of ${count}`}
           {section && ` · ${minutesLeft} min left in this part`}
