@@ -1,0 +1,24 @@
+# One-click deploy on Render: https://render.com/deploy
+services:
+  - type: web
+    name: liberia-online-library
+    runtime: node
+    plan: starter # a persistent disk (below) needs a paid plan
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22.13.1"
+      - key: DATABASE_PATH
+        value: /var/data/library.db
+      - key: SECURE_COOKIES
+        value: "true"
+      - key: SEED_DEMO
+        value: "false"
+      - key: ADMIN_EMAILS
+        sync: false # you'll be asked for your email; that account becomes a librarian
+    disk:
+      name: library-data
+      mountPath: /var/data
+      sizeGB: 1
