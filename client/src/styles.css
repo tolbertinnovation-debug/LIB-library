@@ -3300,3 +3300,14 @@ a.tile:hover {
     padding: 84px 18px 110px;
   }
 }
+.edition-banner {
+  background: var(--brand);
+  color: #eef2fa;
+  text-align: center;
+  font-size: 0.85rem;
+  padding: 7px 16px;
+}
+.edition-banner a {
+  color: #fff !important;
+  font-weight: 700;
+}

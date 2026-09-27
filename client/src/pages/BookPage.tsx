@@ -8,6 +8,7 @@ import { ErrorState, Loading, ShelfRow, StarInput, Stars } from '../components/u
 import { dueLabel, formatDate, formatYear, plural, readingTime, timeAgo } from '../format';
 import { invalidate, useApi, useDocumentTitle } from '../hooks';
 import { useToast } from '../toast';
+import { IS_STATIC } from '../staticApi';
 import type { BookDetail, Circulation, Shelf, ShelfStatus } from '../types';
 
 const SHELF_LABELS: Record<ShelfStatus, string> = {
@@ -91,7 +92,7 @@ export default function BookPage() {
         <aside className="action-panel" aria-label="Get this book">
           {book.readable && <ReadPanel data={data} />}
           {book.copies > 0 && <BorrowPanel data={data} onChange={setCirculation} />}
-          <ShelfPanel data={data} onChange={setShelf} />
+          {!IS_STATIC && <ShelfPanel data={data} onChange={setShelf} />}
         </aside>
       </div>
 
@@ -158,7 +159,16 @@ function BorrowPanel({ data, onChange }: { data: BookDetail; onChange: (c: Circu
   };
 
   let body;
-  if (c.loan) {
+  if (IS_STATIC) {
+    body = (
+      <p className={`status ${c.available > 0 ? 'status-ok' : 'status-warning'}`}>
+        <span>
+          {c.available > 0 ? `${c.available} of ${plural(c.copies, 'copy', 'copies')} on the shelf` : `All ${plural(c.copies, 'copy', 'copies')} are out`} · borrowing is
+          available on the full library
+        </span>
+      </p>
+    );
+  } else if (c.loan) {
     const due = dueLabel(c.loan.dueAt);
     body = (
       <>
@@ -435,7 +445,7 @@ function Reviews({ data, onChanged }: { data: BookDetail; onChanged: () => void 
               </div>
             </form>
           )}
-          {!user && (
+          {!user && !IS_STATIC && (
             <p className="muted">
               <Link to={`/signin?next=/books/${data.book.slug}`}>Sign in</Link> to rate and review this book.
             </p>

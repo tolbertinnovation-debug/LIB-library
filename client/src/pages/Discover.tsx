@@ -7,6 +7,7 @@ import { Icon } from '../components/Icon';
 import { Empty, Loading, Modal } from '../components/ui';
 import { compact, plural } from '../format';
 import { useApi, useDocumentTitle } from '../hooks';
+import { IS_STATIC } from '../staticApi';
 import { useToast } from '../toast';
 
 interface GutenbergBook {
@@ -35,7 +36,7 @@ type Source = 'gutenberg' | 'openlibrary';
 export default function Discover() {
   useDocumentTitle('Discover');
   const [params, setParams] = useSearchParams();
-  const source = (params.get('source') as Source) || 'gutenberg';
+  const source: Source = IS_STATIC ? 'openlibrary' : (params.get('source') as Source) || 'gutenberg';
   const q = params.get('q') ?? '';
   const [draft, setDraft] = useState(q);
   useEffect(() => setDraft(q), [q]);
@@ -61,7 +62,7 @@ export default function Discover() {
         </div>
       </div>
 
-      <div className="tabs" role="tablist">
+      <div className="tabs" role="tablist" hidden={IS_STATIC}>
         <button role="tab" aria-selected={source === 'gutenberg'} className={source === 'gutenberg' ? 'on' : ''} onClick={() => setParams(q ? { q } : {})}>
           <Icon name="bookOpen" size={16} /> Free to read · Project Gutenberg
         </button>

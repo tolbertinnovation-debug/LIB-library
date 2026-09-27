@@ -1,3 +1,5 @@
+import { IS_STATIC, NO_SERVER_MESSAGE, staticGet } from './staticApi';
+
 export class ApiError extends Error {
   status: number;
   constructor(status: number, message: string) {
@@ -9,6 +11,14 @@ export class ApiError extends Error {
 type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 export async function api<T = unknown>(path: string, method: Method = 'GET', body?: unknown, init?: RequestInit): Promise<T> {
+  if (IS_STATIC) {
+    if (method !== 'GET') throw new ApiError(501, NO_SERVER_MESSAGE);
+    try {
+      return (await staticGet(path)) as T;
+    } catch (e) {
+      throw new ApiError((e as { status?: number }).status ?? 501, (e as Error).message);
+    }
+  }
   const res = await fetch(`/api${path}`, {
     method,
     credentials: 'same-origin',

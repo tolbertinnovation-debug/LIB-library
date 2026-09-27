@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth';
+import { IS_STATIC } from '../staticApi';
 import { initials } from '../format';
 import { useTheme } from '../theme';
 import { useToast } from '../toast';
@@ -73,6 +74,7 @@ function UserMenu() {
       document.removeEventListener('keydown', esc);
     };
   }, [open]);
+  if (!user && IS_STATIC) return null;
   if (!user) {
     return (
       <div className="header-auth">
@@ -181,6 +183,12 @@ export function Layout() {
           </button>
           <UserMenu />
         </div>
+        {IS_STATIC && (
+          <div className="edition-banner">
+            ★ Free reading edition — browse the catalog and read {''}
+            <Link to="/browse?readable=1">17 complete classics</Link> right here. Borrowing and library cards are on the full library.
+          </div>
+        )}
         {menuOpen && (
           <nav className="mobile-nav" aria-label="Main">
             <SearchBox onDone={() => setMenuOpen(false)} />
@@ -216,8 +224,8 @@ function Footer() {
         </div>
         <div>
           <h4>Members</h4>
-          <Link to="/join">Get a library card</Link>
-          <Link to="/me">My library</Link>
+          {!IS_STATIC && <Link to="/join">Get a library card</Link>}
+          {!IS_STATIC && <Link to="/me">My library</Link>}
           <Link to="/about">How borrowing works</Link>
         </div>
         <div>
