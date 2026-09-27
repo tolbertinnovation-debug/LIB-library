@@ -70,10 +70,17 @@ docker run -p 3000:3000 -v library-data:/data -e SECURE_COOKIES=true liberia-lib
 | `DATABASE_PATH` | `data/library.db` | SQLite database file |
 | `SEED_DEMO` | `true` | Set to `false` to start with the catalog only (no demo members) |
 | `SECURE_COOKIES` | `false` | Set to `true` when served over HTTPS |
+| `ADMIN_EMAILS` | — | Comma-separated emails; accounts registered with them become librarians |
 
-> **Before going live:** start with `SEED_DEMO=false`, register your own account, and promote it to
-> librarian (`UPDATE users SET role = 'librarian' WHERE email = '…'` in the database). From then on,
-> librarians can promote others from **Desk → Members**.
+> **Before going live:** start with `SEED_DEMO=false` and set `ADMIN_EMAILS` to your email, then
+> register with that email — your account becomes a librarian. From then on, librarians can promote
+> others from **Desk → Members**.
+
+### Deploy to Render
+
+The repo includes a `render.yaml` blueprint. In Render choose **New → Blueprint**, pick this
+repository, enter your email for `ADMIN_EMAILS`, and deploy. It builds the site, keeps the database
+on a persistent 1 GB disk (Render's paid Starter plan), and serves it over HTTPS.
 
 `npm run seed -- --reset` wipes the database and loads a fresh copy (`--no-demo` to skip demo data).
 

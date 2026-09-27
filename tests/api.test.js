@@ -26,6 +26,12 @@ describe('accounts', () => {
     assert.equal((await a.post('/api/auth/login', { email: 'reader@liberia.library', password: 'nope-nope' })).status, 401);
   });
 
+  test('emails listed in ADMIN_EMAILS register as librarians', async () => {
+    const a = lib.agent();
+    assert.equal((await a.register('Head Librarian', 'head@example.com')).role, 'librarian');
+    assert.equal((await a.get('/api/admin/overview')).status, 200);
+  });
+
   test('state-changing requests must be JSON', async () => {
     const res = await fetch(`${lib.base}/api/auth/login`, {
       method: 'POST',

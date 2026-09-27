@@ -24,7 +24,7 @@ export function validatePassword(password) {
   return password;
 }
 
-export default function authRoutes({ db, now, secureCookies }) {
+export default function authRoutes({ db, now, secureCookies, adminEmails = [] }) {
   const r = Router();
   const loginLimiter = rateLimiter({ windowMs: 15 * 60 * 1000, max: 10 });
 
@@ -60,9 +60,9 @@ export default function authRoutes({ db, now, secureCookies }) {
     const { lastInsertRowid } = db
       .prepare(
         `INSERT INTO users (email, name, password_hash, role, card_number, created_at)
-         VALUES (?, ?, ?, 'member', ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?)`,
       )
-      .run(email, name, hashPassword(password), card, iso(now()));
+      .run(email, name, hashPassword(password), adminEmails.includes(email) ? 'librarian' : 'member', card, iso(now()));
     const user = db.prepare('SELECT * FROM users WHERE id = ?').get(lastInsertRowid);
     startSession(res, user.id);
     res.status(201).json({ user: serializeUser(user) });

@@ -22,9 +22,9 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
  * @param {boolean} [opts.serveClient]  serve the built SPA from dist/
  * @param {boolean} [opts.secureCookies]
  */
-export function createApp({ db, now = () => Date.now(), fetchImpl = fetch, serveClient = false, secureCookies = false }) {
+export function createApp({ db, now = () => Date.now(), fetchImpl = fetch, serveClient = false, secureCookies = false, adminEmails = [] }) {
   const app = express();
-  const ctx = { db, now, fetchImpl, secureCookies };
+  const ctx = { db, now, fetchImpl, secureCookies, adminEmails: adminEmails.map((e) => e.trim().toLowerCase()).filter(Boolean) };
 
   app.disable('x-powered-by');
   app.set('trust proxy', 'loopback, linklocal, uniquelocal');

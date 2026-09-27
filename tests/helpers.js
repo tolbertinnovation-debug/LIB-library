@@ -10,7 +10,7 @@ export async function startLibrary({ demo = true, fetchImpl } = {}) {
   const clock = { t: Date.parse('2026-03-01T12:00:00Z') };
   const db = openDb(':memory:');
   seed(db, { now: clock.t, demo });
-  const app = createApp({ db, now: () => clock.t, fetchImpl });
+  const app = createApp({ db, now: () => clock.t, fetchImpl, adminEmails: ['Head@Example.com'] });
   const server = await new Promise((resolve) => {
     const s = app.listen(0, () => resolve(s));
   });

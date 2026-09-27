@@ -18,6 +18,8 @@ const app = createApp({
   db,
   serveClient: production,
   secureCookies: process.env.SECURE_COOKIES === 'true',
+  // Accounts registered with these emails become librarians automatically.
+  adminEmails: (process.env.ADMIN_EMAILS || '').split(','),
 });
 
 const server = app.listen(port, () => {
