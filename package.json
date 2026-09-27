@@ -8,23 +8,26 @@
     "node": ">=22.13"
   },
   "scripts": {
-    "dev": "node --disable-warning=ExperimentalWarning scripts/dev.js",
+    "dev": "node scripts/copy-voice-runtime.js && node --disable-warning=ExperimentalWarning scripts/dev.js",
     "dev:server": "node --disable-warning=ExperimentalWarning --watch server/index.js",
     "dev:client": "vite",
-    "build": "tsc -p client/tsconfig.json --noEmit && vite build",
+    "build": "node scripts/copy-voice-runtime.js && tsc -p client/tsconfig.json --noEmit && vite build",
     "start": "NODE_ENV=production node --disable-warning=ExperimentalWarning server/index.js",
     "seed": "node --disable-warning=ExperimentalWarning server/seed/cli.js",
     "typecheck": "tsc -p client/tsconfig.json --noEmit",
     "test": "node --disable-warning=ExperimentalWarning --test \"tests/**/*.test.js\"",
-    "build:pages": "VITE_STATIC=1 vite build --base=${PAGES_BASE:-/LIB-library/} --outDir ../dist-pages && node --disable-warning=ExperimentalWarning scripts/build-pages-data.js dist-pages && cp dist-pages/index.html dist-pages/404.html && touch dist-pages/.nojekyll"
+    "build:pages": "node scripts/copy-voice-runtime.js && VITE_STATIC=1 vite build --base=${PAGES_BASE:-/LIB-library/} --outDir ../dist-pages && node --disable-warning=ExperimentalWarning scripts/build-pages-data.js dist-pages && cp dist-pages/index.html dist-pages/404.html && touch dist-pages/.nojekyll",
+    "voice-runtime": "node scripts/copy-voice-runtime.js"
   },
   "dependencies": {
     "express": "^5.2.1"
   },
   "devDependencies": {
+    "@diffusionstudio/piper-wasm": "^1.0.0",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.1",
+    "onnxruntime-web": "^1.22.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "react-router-dom": "^7.18.4",

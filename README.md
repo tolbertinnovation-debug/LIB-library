@@ -8,13 +8,18 @@ A complete public library that lives on the web — built for Liberia, open to t
   adjustable type, chapter navigation, search inside the book, bookmarks, saved quotes and notes,
   and automatic sync of your place across devices. Keyboard: `←`/`→` chapters, `b` bookmark,
   `t` contents, `/` search.
-- **Listen** — press 🎧 in the reader. When a volunteer-narrated LibriVox recording of the book
-  exists on the Internet Archive, it plays a **real human narrator**, chapter by chapter, with
-  speed control, ±15/30-second skips, a sleep timer, lock-screen controls and your place remembered.
-  Otherwise (or if you switch to **Follow text**) the book is read by the most natural voice on the
-  device, highlighting each paragraph, pausing between sentences like a narrator, and saying
-  “Mister”, “Chapter 4” and so on the way a person would. Keyboard: `l` opens the player, `space`
-  plays/pauses.
+- **Listen** — press 🎧 in the reader. Three kinds of voice, best first:
+  1. **Real human narrators**: when a volunteer LibriVox recording of the book exists on the
+     Internet Archive, it plays chapter by chapter with speed, ±15/30-second skips, a sleep timer,
+     lock-screen controls and your place remembered.
+  2. **Natural AI voices** (✦ Lessac, Alba, Ryan, Alan, Hannah): Piper neural voices that run
+     entirely in the browser. A voice downloads once (about 60 MB) from the official Piper voice
+     library, then works offline, starts in well under a second, and changes speed without
+     changing pitch.
+  3. **Voices on the device**, sorted so the most natural ones (★) come first.
+  With 2 and 3 the current paragraph is highlighted and followed, the reader pauses between
+  sentences and paragraphs like a narrator, says “Mister”, “Chapter 4” and so on the way a person
+  would, and carries on into the next chapter. Keyboard: `l` opens the player, `space` plays/pauses.
 - **17 complete classics are bundled** (≈1.3 million words — Austen, Carroll, Melville, Milton,
   Shakespeare, Whitman, Chesterton, Blake…), so reading works even without internet access.
   Any other catalog title with a Project Gutenberg number is downloaded on first open and cached.

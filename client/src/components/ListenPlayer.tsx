@@ -6,6 +6,9 @@ import { findRecording, type Recording } from '../librivox';
 import { HumanNarration } from './HumanNarration';
 import { Icon } from './Icon';
 import { ReadAloudBar, canSpeak, type ListenProps } from './ReadAloud';
+import { studioSupported } from '../studioVoice';
+
+const canRead = canSpeak || studioSupported;
 
 type Mode = 'human' | 'device';
 
@@ -33,27 +36,25 @@ export function ListenPlayer(props: ListenProps & { sectionIdx: number | null; s
           <strong>Looking for a human narrator…</strong>
           <span>Checking the LibriVox library of volunteer recordings.</span>
         </div>
-        {canSpeak && (
-          <button className="btn btn-sm" onClick={() => setRecording(null)}>
-            Use device voice
-          </button>
-        )}
-        <button className="icon-btn" onClick={props.onClose} aria-label="Close player">
+        <button className="btn btn-sm" onClick={() => setRecording(null)}>
+          Skip
+        </button>
+        <button className="icon-btn listen-close" onClick={props.onClose} aria-label="Close player">
           <Icon name="x" />
         </button>
       </div>
     );
   }
 
-  const mode: Mode = recording && !failed && (preferred === 'human' || !canSpeak) ? 'human' : 'device';
+  const mode: Mode = recording && !failed && (preferred === 'human' || !canRead) ? 'human' : 'device';
   const switcher =
-    recording && canSpeak ? (
+    recording && canRead ? (
       <div className="segmented segmented-sm" role="group" aria-label="Narrator">
         <button aria-pressed={mode === 'human'} onClick={() => { setFailed(false); setPreferred('human'); }} title="Real human narrator (LibriVox)">
           <Icon name="user" size={14} /> Human
         </button>
         <button aria-pressed={mode === 'device'} onClick={() => setPreferred('device')} title="Device voice — follows the text on screen">
-          <Icon name="type" size={14} /> Follow text
+          <Icon name="type" size={14} /> Read along
         </button>
       </div>
     ) : null;
