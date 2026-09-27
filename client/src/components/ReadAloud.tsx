@@ -1,9 +1,9 @@
-// "Listen" mode: reads the open book aloud with the device's own voices
-// (Web Speech API), highlighting and following along paragraph by paragraph,
-// and carrying on into the next part of the book automatically.
-import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
+// "Listen" with the device's own voices (Web Speech API): reads the open book
+// aloud paragraph by paragraph, highlighting and following along, pausing the
+// way a narrator would, and carrying on into the next part of the book.
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { useStoredState } from '../hooks';
-import { chunkText } from '../speech';
+import { chunkText, pauseAfter } from '../speech';
 import { Icon } from './Icon';
 
 export const canSpeak = typeof window !== 'undefined' && 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
@@ -13,17 +13,22 @@ interface ListenSettings {
   voiceURI: string | null;
 }
 
-const RATES = [0.75, 0.9, 1, 1.15, 1.3, 1.5, 1.75, 2];
+export const RATES = [0.75, 0.9, 1, 1.15, 1.3, 1.5, 1.75, 2];
 const SLEEP_OPTIONS = [0, 15, 30, 45, 60];
 const BLOCK_SELECTOR = '.reader-section-title, [data-p]';
+const NATURAL = /natural|neural|enhanced|premium|online|siri|wavenet|studio/i;
 
 function voiceScore(v: SpeechSynthesisVoice) {
   let n = 0;
-  if (/natural|neural|enhanced|premium|online/i.test(v.name)) n += 4;
-  if (/google/i.test(v.name)) n += 2;
-  if (v.localService) n += 1;
+  if (NATURAL.test(v.name)) n += 8; // the most human-sounding voices
+  if (/google/i.test(v.name)) n += 3;
+  if (/compact|espeak|robot|novelty|whisper|bad news|bells|boing|bubbles|cellos|jester|organ|trinoids|zarvox|albert|fred|junior|ralph/i.test(v.name)) n -= 10;
   if (v.default) n += 1;
   return n;
+}
+
+export function isNaturalVoice(v: SpeechSynthesisVoice | null) {
+  return Boolean(v && NATURAL.test(v.name));
 }
 
 function useVoices(lang: string) {
@@ -42,7 +47,63 @@ function useVoices(lang: string) {
   }, [voices, lang]);
 }
 
-interface Props {
+/** A sleep timer that calls onSleep when time is up; the button cycles off/15/30/45/60 minutes. */
+export function useSleepTimer(onSleep: () => void) {
+  const [sleepAt, setSleepAt] = useState<number | null>(null);
+  const [now, setNow] = useState(Date.now());
+  const cb = useRef(onSleep);
+  cb.current = onSleep;
+  useEffect(() => {
+    if (!sleepAt) return;
+    const t = setInterval(() => {
+      setNow(Date.now());
+      if (Date.now() >= sleepAt) {
+        cb.current();
+        setSleepAt(null);
+      }
+    }, 1000);
+    return () => clearInterval(t);
+  }, [sleepAt]);
+  const left = sleepAt ? Math.max(0, Math.ceil((sleepAt - now) / 60000)) : 0;
+  const button = (
+    <button
+      className={`btn btn-sm ${sleepAt ? 'on' : ''}`}
+      onClick={() => {
+        const current = sleepAt ? SLEEP_OPTIONS.findIndex((m) => m >= left) : 0;
+        const next = SLEEP_OPTIONS[(current + 1) % SLEEP_OPTIONS.length]!;
+        setSleepAt(next ? Date.now() + next * 60000 : null);
+        setNow(Date.now());
+      }}
+      title="Sleep timer"
+      aria-label={sleepAt ? `Sleep timer: ${left} minutes left` : 'Set a sleep timer'}
+    >
+      <Icon name="moonTimer" size={16} /> {sleepAt ? `${left}m` : 'Sleep'}
+    </button>
+  );
+  return button;
+}
+
+/** Keep the screen awake while playing (phones stop speech when the screen locks). */
+export function useWakeLock(active: boolean) {
+  useEffect(() => {
+    if (!active || !('wakeLock' in navigator)) return;
+    let lock: WakeLockSentinel | null = null;
+    let cancelled = false;
+    navigator.wakeLock
+      .request('screen')
+      .then((l) => {
+        if (cancelled) l.release();
+        else lock = l;
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+      lock?.release().catch(() => undefined);
+    };
+  }, [active]);
+}
+
+export interface ListenProps {
   containerRef: RefObject<HTMLElement | null>;
   /** Changes whenever a new part of the book has rendered. */
   sectionKey: string | null;
@@ -54,16 +115,17 @@ interface Props {
   autoStart: boolean;
   onNeedNext: () => void;
   onClose: () => void;
+  /** Extra controls (e.g. the narrator switch). */
+  extra?: ReactNode;
 }
 
-export function ReadAloudBar({ containerRef, sectionKey, lang, title, author, sectionTitle, hasNext, autoStart, onNeedNext, onClose }: Props) {
+export function ReadAloudBar({ containerRef, sectionKey, lang, title, author, sectionTitle, hasNext, autoStart, onNeedNext, onClose, extra }: ListenProps) {
   const [settings, setSettings] = useStoredState<ListenSettings>('lol-listen', { rate: 1, voiceURI: null });
   const voices = useVoices(lang);
   const voice = voices.find((v) => v.voiceURI === settings.voiceURI) ?? voices[0] ?? null;
   const [playing, setPlaying] = useState(false);
   const [finished, setFinished] = useState(false);
-  const [sleepAt, setSleepAt] = useState<number | null>(null);
-  const [now, setNow] = useState(Date.now());
+  const [voiceError, setVoiceError] = useState(false);
 
   // Mutable playback state, read inside speech callbacks.
   const cursor = useRef({ block: 0, piece: 0 });
@@ -71,8 +133,8 @@ export function ReadAloudBar({ containerRef, sectionKey, lang, title, author, se
   const generation = useRef(0); // bumps on every stop, so stale callbacks are ignored
   const continueIntoNext = useRef(false);
   const utterance = useRef<SpeechSynthesisUtterance | null>(null); // keeps Chrome from garbage-collecting it mid-sentence
+  const gap = useRef<ReturnType<typeof setTimeout> | null>(null);
   const failures = useRef(0);
-  const [voiceError, setVoiceError] = useState(false);
   const live = useRef({ voice, rate: settings.rate, hasNext, onNeedNext });
   live.current = { voice, rate: settings.rate, hasNext, onNeedNext };
 
@@ -80,28 +142,35 @@ export function ReadAloudBar({ containerRef, sectionKey, lang, title, author, se
     blocks.current = Array.from(containerRef.current?.querySelectorAll<HTMLElement>(BLOCK_SELECTOR) ?? []);
   }, [containerRef]);
 
-  const highlight = useCallback((i: number | null) => {
-    for (const el of containerRef.current?.querySelectorAll('.r-speaking') ?? []) el.classList.remove('r-speaking');
-    if (i == null) return;
-    const el = blocks.current[i];
-    if (!el) return;
-    el.classList.add('r-speaking');
-    const r = el.getBoundingClientRect();
-    if (r.top < 80 || r.bottom > window.innerHeight - 140) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
-  }, [containerRef]);
+  const highlight = useCallback(
+    (i: number | null) => {
+      for (const el of containerRef.current?.querySelectorAll('.r-speaking') ?? []) el.classList.remove('r-speaking');
+      if (i == null) return;
+      const el = blocks.current[i];
+      if (!el) return;
+      el.classList.add('r-speaking');
+      const r = el.getBoundingClientRect();
+      if (r.top < 80 || r.bottom > window.innerHeight - 160) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    },
+    [containerRef],
+  );
+
+  const halt = useCallback(() => {
+    generation.current++;
+    if (gap.current) clearTimeout(gap.current);
+    window.speechSynthesis.cancel();
+  }, []);
 
   const stop = useCallback(() => {
-    generation.current++;
-    window.speechSynthesis.cancel();
+    halt();
     setPlaying(false);
-  }, []);
+  }, [halt]);
 
   const speakFrom = useCallback(
     (block: number, piece = 0) => {
       if (!canSpeak) return;
-      generation.current++;
+      halt();
       const gen = generation.current;
-      window.speechSynthesis.cancel();
       collect();
       cursor.current = { block, piece };
       setPlaying(true);
@@ -125,14 +194,16 @@ export function ReadAloudBar({ containerRef, sectionKey, lang, title, author, se
           }
           return;
         }
-        const pieces = chunkText(el.textContent ?? '');
+        const heading = el.classList.contains('reader-section-title') || el.tagName === 'H3';
+        const pieces = chunkText(el.textContent ?? '', 220, { heading });
         if (p >= pieces.length) {
           cursor.current = { block: b + 1, piece: 0 };
           step();
           return;
         }
         if (p === 0) highlight(b);
-        const u = new SpeechSynthesisUtterance(pieces[p]);
+        const text = pieces[p]!;
+        const u = new SpeechSynthesisUtterance(text);
         u.lang = live.current.voice?.lang ?? lang;
         if (live.current.voice) u.voice = live.current.voice;
         u.rate = live.current.rate;
@@ -140,7 +211,9 @@ export function ReadAloudBar({ containerRef, sectionKey, lang, title, author, se
           if (gen !== generation.current) return;
           failures.current = 0;
           cursor.current = { block: b, piece: p + 1 };
-          step();
+          // Breathe between sentences and paragraphs like a person reading.
+          const pause = pauseAfter(text, { endOfBlock: p + 1 >= pieces.length, heading }) / live.current.rate;
+          gap.current = setTimeout(step, pause);
         };
         u.onerror = (e) => {
           if (gen !== generation.current || e.error === 'interrupted' || e.error === 'canceled') return;
@@ -151,7 +224,6 @@ export function ReadAloudBar({ containerRef, sectionKey, lang, title, author, se
             setVoiceError(true);
             return;
           }
-          // Skip a piece the voice can't handle rather than stopping.
           cursor.current = { block: b, piece: p + 1 };
           step();
         };
@@ -160,7 +232,7 @@ export function ReadAloudBar({ containerRef, sectionKey, lang, title, author, se
       };
       step();
     },
-    [collect, highlight, lang],
+    [collect, highlight, halt, lang],
   );
 
   /** The first paragraph that is at least partly on screen. */
@@ -241,36 +313,8 @@ export function ReadAloudBar({ containerRef, sectionKey, lang, title, author, se
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings.rate, settings.voiceURI]);
 
-  // Sleep timer.
-  useEffect(() => {
-    if (!sleepAt) return;
-    const t = setInterval(() => {
-      setNow(Date.now());
-      if (Date.now() >= sleepAt) {
-        stop();
-        setSleepAt(null);
-      }
-    }, 1000);
-    return () => clearInterval(t);
-  }, [sleepAt, stop]);
-
-  // Keep the screen awake while listening (phones stop speech when the screen locks).
-  useEffect(() => {
-    if (!playing || !('wakeLock' in navigator)) return;
-    let lock: WakeLockSentinel | null = null;
-    let cancelled = false;
-    navigator.wakeLock
-      .request('screen')
-      .then((l) => {
-        if (cancelled) l.release();
-        else lock = l;
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-      lock?.release().catch(() => undefined);
-    };
-  }, [playing]);
+  const sleepButton = useSleepTimer(stop);
+  useWakeLock(playing);
 
   // Headset buttons and lock-screen controls where supported.
   useEffect(() => {
@@ -321,6 +365,7 @@ export function ReadAloudBar({ containerRef, sectionKey, lang, title, author, se
   useEffect(
     () => () => {
       generation.current++;
+      if (gap.current) clearTimeout(gap.current);
       window.speechSynthesis.cancel();
       for (const el of document.querySelectorAll('.r-speaking')) el.classList.remove('r-speaking');
     },
@@ -331,6 +376,7 @@ export function ReadAloudBar({ containerRef, sectionKey, lang, title, author, se
     return (
       <div className="listen-bar" role="region" aria-label="Listen">
         <p className="listen-note">Your browser can’t read aloud. Try Chrome, Edge or Safari.</p>
+        {extra}
         <button className="icon-btn" onClick={onClose} aria-label="Close player">
           <Icon name="x" />
         </button>
@@ -338,13 +384,7 @@ export function ReadAloudBar({ containerRef, sectionKey, lang, title, author, se
     );
   }
 
-  const sleepLeft = sleepAt ? Math.max(0, Math.ceil((sleepAt - now) / 60000)) : 0;
-  const cycleSleep = () => {
-    const current = sleepAt ? SLEEP_OPTIONS.findIndex((m) => m >= sleepLeft) : 0;
-    const next = SLEEP_OPTIONS[(current + 1) % SLEEP_OPTIONS.length]!;
-    setSleepAt(next ? Date.now() + next * 60000 : null);
-    setNow(Date.now());
-  };
+  const natural = isNaturalVoice(voice);
 
   return (
     <div className="listen-bar" role="region" aria-label="Listen to this book">
@@ -366,10 +406,13 @@ export function ReadAloudBar({ containerRef, sectionKey, lang, title, author, se
             ? 'Your device has no working text-to-speech voice. Install one in your system settings, or try another voice.'
             : finished
               ? `You’ve listened to all of ${title}.`
-              : 'Tap any paragraph to listen from there.'}
+              : natural
+                ? 'Natural voice · tap any paragraph to listen from there.'
+                : 'Tip: voices marked ★ sound most natural. Tap any paragraph to jump there.'}
         </span>
       </div>
       <div className="listen-options">
+        {extra}
         <label>
           <span className="sr-only">Speed</span>
           <select value={settings.rate} onChange={(e) => setSettings({ ...settings, rate: Number(e.target.value) })} aria-label="Reading speed">
@@ -386,15 +429,14 @@ export function ReadAloudBar({ containerRef, sectionKey, lang, title, author, se
             <select value={voice?.voiceURI ?? ''} onChange={(e) => setSettings({ ...settings, voiceURI: e.target.value })} aria-label="Voice">
               {voices.map((v) => (
                 <option key={v.voiceURI} value={v.voiceURI}>
-                  {v.name.replace(/^(Microsoft|Google)\s+/, '')} ({v.lang})
+                  {isNaturalVoice(v) ? '★ ' : ''}
+                  {v.name.replace(/^(Microsoft|Google)\s+/, '').replace(/\s*-\s*English.*$/, '')} ({v.lang})
                 </option>
               ))}
             </select>
           </label>
         )}
-        <button className={`btn btn-sm ${sleepAt ? 'on' : ''}`} onClick={cycleSleep} title="Sleep timer" aria-label={sleepAt ? `Sleep timer: ${sleepLeft} minutes left` : 'Set a sleep timer'}>
-          <Icon name="moonTimer" size={16} /> {sleepAt ? `${sleepLeft}m` : 'Sleep'}
-        </button>
+        {sleepButton}
         <button className="icon-btn" onClick={onClose} aria-label="Close player" title="Close player">
           <Icon name="x" />
         </button>
