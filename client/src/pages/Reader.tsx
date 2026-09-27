@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { del, get, patch, post, put } from '../api';
 import { useAuth } from '../auth';
 import { Icon } from '../components/Icon';
-import { ReadAloudBar, canSpeak } from '../components/ReadAloud';
+import { ListenPlayer } from '../components/ListenPlayer';
 import { useApi, useDebounced, useDocumentTitle, useStoredState, readStorage, writeStorage, invalidate } from '../hooks';
 import { IS_STATIC, NO_SERVER_MESSAGE } from '../staticApi';
 import { useToast } from '../toast';
@@ -343,7 +343,7 @@ export default function Reader() {
       if (e.key === 'ArrowRight' && idx !== null) goTo(idx + 1);
       else if (e.key === 'ArrowLeft' && idx !== null) goTo(idx - 1);
       else if (e.key === 'b') addBookmark();
-      else if (e.key === 'l' && canSpeak) setListening((l) => !l);
+      else if (e.key === 'l') setListening((l) => !l);
       else if (e.key === 't') setPanel((p) => (p === 'toc' ? null : 'toc'));
       else if (e.key === '/' || e.key === 'f') {
         e.preventDefault();
@@ -388,11 +388,9 @@ export default function Reader() {
           <span>{section?.title ?? ''}</span>
         </div>
         <div className="reader-bar-actions">
-          {canSpeak && (
-            <button className={`icon-btn ${listening ? 'on' : ''}`} onClick={() => setListening((l) => !l)} aria-label="Listen — read aloud (l)" title="Listen — read aloud (l)" aria-pressed={listening}>
-              <Icon name="headphones" />
-            </button>
-          )}
+          <button className={`icon-btn ${listening ? 'on' : ''}`} onClick={() => setListening((l) => !l)} aria-label="Listen (l)" title="Listen — human narrator or read aloud (l)" aria-pressed={listening}>
+            <Icon name="headphones" />
+          </button>
           <button className={`icon-btn ${panel === 'toc' ? 'on' : ''}`} onClick={() => setPanel(panel === 'toc' ? null : 'toc')} aria-label="Contents (t)" title="Contents (t)">
             <Icon name="list" />
           </button>
@@ -517,7 +515,9 @@ export default function Reader() {
       </main>
 
       {listening && book && (
-        <ReadAloudBar
+        <ListenPlayer
+          sectionIdx={idx}
+          sectionCount={count}
           containerRef={contentRef}
           sectionKey={section ? `${slug}:${section.idx}` : null}
           lang={book.language}

@@ -11,7 +11,7 @@ export const DAY = 24 * 60 * 60 * 1000;
 export function slugify(s) {
   return String(s)
     .normalize('NFKD')
-    .replace(/[̀-ͯ]/g, '')
+    .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
     .replace(/['’]/g, '')
     .replace(/[^a-z0-9]+/g, '-')

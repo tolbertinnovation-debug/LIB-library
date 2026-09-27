@@ -8,11 +8,13 @@ A complete public library that lives on the web — built for Liberia, open to t
   adjustable type, chapter navigation, search inside the book, bookmarks, saved quotes and notes,
   and automatic sync of your place across devices. Keyboard: `←`/`→` chapters, `b` bookmark,
   `t` contents, `/` search.
-- **Listen** — any online book can be read aloud with the device’s own voices: the current
-  paragraph is highlighted and followed on screen, it continues into the next chapter by itself,
-  and you can change speed and voice, tap a paragraph to jump there, or set a sleep timer.
-  Headset and lock-screen buttons work where supported. Keyboard: `l` opens the player, `space`
-  plays/pauses. Book pages also link to human-narrated LibriVox recordings.
+- **Listen** — press 🎧 in the reader. When a volunteer-narrated LibriVox recording of the book
+  exists on the Internet Archive, it plays a **real human narrator**, chapter by chapter, with
+  speed control, ±15/30-second skips, a sleep timer, lock-screen controls and your place remembered.
+  Otherwise (or if you switch to **Follow text**) the book is read by the most natural voice on the
+  device, highlighting each paragraph, pausing between sentences like a narrator, and saying
+  “Mister”, “Chapter 4” and so on the way a person would. Keyboard: `l` opens the player, `space`
+  plays/pauses.
 - **17 complete classics are bundled** (≈1.3 million words — Austen, Carroll, Melville, Milton,
   Shakespeare, Whitman, Chesterton, Blake…), so reading works even without internet access.
   Any other catalog title with a Project Gutenberg number is downloaded on first open and cached.

@@ -27,7 +27,7 @@ interface TextFile {
 const ERAS: Record<string, [number, number]> = { ancient: [-5000, 1499], early: [1500, 1799], c19: [1800, 1899], c20: [1900, 1999], c21: [2000, 3000] };
 
 function fold(s: string) {
-  return s.normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  return s.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 }
 
 function score(b: Book, terms: string[]) {

@@ -4,7 +4,6 @@ import { ApiError, del, get, post, put } from '../api';
 import { useAuth } from '../auth';
 import { Cover } from '../components/Cover';
 import { Icon } from '../components/Icon';
-import { canSpeak } from '../components/ReadAloud';
 import { ErrorState, Loading, ShelfRow, StarInput, Stars } from '../components/ui';
 import { dueLabel, formatDate, formatYear, plural, readingTime, timeAgo } from '../format';
 import { invalidate, useApi, useDocumentTitle } from '../hooks';
@@ -126,7 +125,7 @@ function ReadPanel({ data }: { data: BookDetail }) {
       <Link to={`/read/${book.slug}`} className="btn btn-primary btn-block">
         {started ? `Continue reading · ${Math.round(progress.percent)}%` : 'Start reading'}
       </Link>
-      {canSpeak && book.hasText && (
+      {book.hasText && (
         <Link to={`/read/${book.slug}?listen=1`} className="btn btn-block listen-btn">
           <Icon name="headphones" size={18} /> Listen {started ? 'from where you left off' : 'to this book'}
         </Link>

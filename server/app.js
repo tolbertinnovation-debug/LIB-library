@@ -39,7 +39,8 @@ export function createApp({ db, now = () => Date.now(), fetchImpl = fetch, serve
       [
         "default-src 'self'",
         "img-src 'self' data: https://covers.openlibrary.org https://www.gutenberg.org",
-        "connect-src 'self' https://openlibrary.org",
+        "connect-src 'self' https://openlibrary.org https://archive.org",
+        "media-src 'self' https://archive.org https://*.archive.org",
         "style-src 'self' 'unsafe-inline'",
         "script-src 'self'",
         "font-src 'self' data:",

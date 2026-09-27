@@ -3434,3 +3434,67 @@ a.tile:hover {
 .reader-listening .reader-main {
   padding-bottom: 240px;
 }
+.listen-human .listen-status {
+  gap: 4px;
+  min-width: 200px;
+}
+.listen-chapter select {
+  min-height: 30px;
+  padding: 2px 28px 2px 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  width: 100%;
+  background-color: transparent;
+  border-color: var(--r-line);
+  color: var(--r-ink);
+  border-radius: 8px;
+}
+.listen-seek {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+.listen-seek input {
+  flex: 1;
+  accent-color: var(--r-accent);
+}
+.seek-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+.spinner-light {
+  border-color: color-mix(in srgb, var(--r-bg) 40%, transparent);
+  border-top-color: var(--r-bg);
+}
+.listen-credit {
+  flex-basis: 100%;
+  margin: -4px 0 0;
+  font-size: 0.72rem;
+  color: var(--r-muted);
+  text-align: center;
+}
+.listen-credit a {
+  color: inherit !important;
+}
+.link-btn {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--r-accent);
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+}
+.segmented-sm button {
+  padding: 4px 10px;
+  font-size: 0.78rem;
+}
+@media (max-width: 600px) {
+  .listen-human .listen-status {
+    order: 3;
+    flex-basis: 100%;
+    text-align: left;
+  }
+}

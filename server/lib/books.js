@@ -63,7 +63,7 @@ export function listBooks(db, whereSql = '1', params = [], { order = 'b.title CO
 export function ftsQuery(q) {
   const terms = String(q)
     .normalize('NFKD')
-    .replace(/[̀-ͯ]/g, '')
+    .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
     .match(/[\p{L}\p{N}]+/gu);
   if (!terms) return null;
