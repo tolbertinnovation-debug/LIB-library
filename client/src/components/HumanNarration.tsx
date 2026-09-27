@@ -207,6 +207,7 @@ export function HumanNarration({ recording, title, author, sectionIdx, sectionCo
           setPlaying(false);
         }}
       />
+      <div className="listen-top">
       <div className="listen-main">
         <button className="icon-btn" onClick={() => seekBy(-15)} aria-label="Back 15 seconds" title="Back 15 seconds">
           <span className="seek-label">−15</span>
@@ -260,6 +261,7 @@ export function HumanNarration({ recording, title, author, sectionIdx, sectionCo
           </>
         )}
       </div>
+      </div>
       <div className="listen-options">
         {extra}
         <select value={rate} onChange={(e) => setRate(Number(e.target.value))} aria-label="Playback speed">
@@ -270,10 +272,10 @@ export function HumanNarration({ recording, title, author, sectionIdx, sectionCo
           ))}
         </select>
         {sleepButton}
-        <button className="icon-btn" onClick={onClose} aria-label="Close player" title="Close player">
-          <Icon name="x" />
-        </button>
       </div>
+      <button className="icon-btn listen-close" onClick={onClose} aria-label="Close player" title="Close player">
+        <Icon name="x" />
+      </button>
       <p className="listen-credit">
         Human narration by LibriVox volunteers ·{' '}
         <a href={recording.page} target="_blank" rel="noreferrer">

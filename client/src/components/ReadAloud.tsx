@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { useStoredState } from '../hooks';
 import { chunkText, pauseAfter } from '../speech';
+import { STUDIO_VOICES, StudioSpeaker, isDownloaded, studioSupported, type StudioVoice } from '../studioVoice';
 import { Icon } from './Icon';
 
 export const canSpeak = typeof window !== 'undefined' && 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
@@ -122,25 +123,64 @@ export interface ListenProps {
 export function ReadAloudBar({ containerRef, sectionKey, lang, title, author, sectionTitle, hasNext, autoStart, onNeedNext, onClose, extra }: ListenProps) {
   const [settings, setSettings] = useStoredState<ListenSettings>('lol-listen', { rate: 1, voiceURI: null });
   const voices = useVoices(lang);
-  const voice = voices.find((v) => v.voiceURI === settings.voiceURI) ?? voices[0] ?? null;
+  const english = (lang || 'en').startsWith('en');
+  const studioVoice: StudioVoice | null =
+    studioSupported && english ? (STUDIO_VOICES.find((v) => `studio:${v.id}` === settings.voiceURI) ?? null) : null;
+  const deviceVoice = voices.find((v) => v.voiceURI === settings.voiceURI) ?? voices[0] ?? null;
   const [playing, setPlaying] = useState(false);
   const [finished, setFinished] = useState(false);
   const [voiceError, setVoiceError] = useState(false);
+  const [download, setDownload] = useState<{ loaded: number; total: number; preparing: boolean } | null>(null);
+  const [studioError, setStudioError] = useState<string | null>(null);
+  const [waiting, setWaiting] = useState(false);
 
-  // Mutable playback state, read inside speech callbacks.
+  // Mutable playback state, read inside the async reading loop.
   const cursor = useRef({ block: 0, piece: 0 });
   const blocks = useRef<HTMLElement[]>([]);
-  const generation = useRef(0); // bumps on every stop, so stale callbacks are ignored
+  const pieceCache = useRef(new Map<number, string[]>());
+  const generation = useRef(0); // bumps on every stop, so a stale loop quits
   const continueIntoNext = useRef(false);
   const utterance = useRef<SpeechSynthesisUtterance | null>(null); // keeps Chrome from garbage-collecting it mid-sentence
   const gap = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const failures = useRef(0);
-  const live = useRef({ voice, rate: settings.rate, hasNext, onNeedNext });
-  live.current = { voice, rate: settings.rate, hasNext, onNeedNext };
+  const studio = useRef<StudioSpeaker | null>(null);
+  const showDownload = useRef(false);
+  const live = useRef({ deviceVoice, studioVoice, rate: settings.rate, hasNext, onNeedNext });
+  live.current = { deviceVoice, studioVoice, rate: settings.rate, hasNext, onNeedNext };
 
   const collect = useCallback(() => {
     blocks.current = Array.from(containerRef.current?.querySelectorAll<HTMLElement>(BLOCK_SELECTOR) ?? []);
+    pieceCache.current.clear();
   }, [containerRef]);
+
+  const piecesFor = useCallback((b: number) => {
+    let pieces = pieceCache.current.get(b);
+    if (!pieces) {
+      const el = blocks.current[b];
+      const heading = Boolean(el && (el.classList.contains('reader-section-title') || el.tagName === 'H3'));
+      pieces = el ? chunkText(el.textContent ?? '', 220, { heading }) : [];
+      pieceCache.current.set(b, pieces);
+    }
+    return pieces;
+  }, []);
+
+  /** The next few pieces after (b, p), for synthesizing ahead. */
+  const upcoming = useCallback(
+    (b: number, p: number, n: number) => {
+      const out: string[] = [];
+      let bi = b;
+      let pi = p + 1;
+      while (out.length < n && bi < blocks.current.length) {
+        const pieces = piecesFor(bi);
+        if (pi < pieces.length) out.push(pieces[pi++]!);
+        else {
+          bi++;
+          pi = 0;
+        }
+      }
+      return out;
+    },
+    [piecesFor],
+  );
 
   const highlight = useCallback(
     (i: number | null) => {
@@ -150,15 +190,27 @@ export function ReadAloudBar({ containerRef, sectionKey, lang, title, author, se
       if (!el) return;
       el.classList.add('r-speaking');
       const r = el.getBoundingClientRect();
-      if (r.top < 80 || r.bottom > window.innerHeight - 160) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      if (r.top < 80 || r.bottom > window.innerHeight - 180) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
     },
     [containerRef],
   );
 
+  const getStudio = useCallback(() => {
+    if (!studio.current) {
+      studio.current = new StudioSpeaker();
+      studio.current.onProgress = (loaded, total, preparing) => {
+        if (showDownload.current) setDownload({ loaded, total, preparing });
+      };
+    }
+    return studio.current;
+  }, []);
+
   const halt = useCallback(() => {
     generation.current++;
     if (gap.current) clearTimeout(gap.current);
-    window.speechSynthesis.cancel();
+    if (canSpeak) window.speechSynthesis.cancel();
+    studio.current?.cancel();
+    setWaiting(false);
   }, []);
 
   const stop = useCallback(() => {
@@ -166,9 +218,24 @@ export function ReadAloudBar({ containerRef, sectionKey, lang, title, author, se
     setPlaying(false);
   }, [halt]);
 
+  const speakDevice = useCallback(
+    (text: string) =>
+      new Promise<void>((resolve, reject) => {
+        const u = new SpeechSynthesisUtterance(text);
+        const v = live.current.deviceVoice;
+        u.lang = v?.lang ?? lang;
+        if (v) u.voice = v;
+        u.rate = live.current.rate;
+        u.onend = () => resolve();
+        u.onerror = (e) => reject(Object.assign(new Error(e.error), { name: e.error === 'interrupted' || e.error === 'canceled' ? 'AbortError' : 'SpeechError' }));
+        utterance.current = u;
+        window.speechSynthesis.speak(u);
+      }),
+    [lang],
+  );
+
   const speakFrom = useCallback(
     (block: number, piece = 0) => {
-      if (!canSpeak) return;
       halt();
       const gen = generation.current;
       collect();
@@ -176,63 +243,87 @@ export function ReadAloudBar({ containerRef, sectionKey, lang, title, author, se
       setPlaying(true);
       setFinished(false);
       setVoiceError(false);
-      failures.current = 0;
+      setStudioError(null);
+      let failures = 0;
+      const wait = (ms: number) =>
+        new Promise<void>((r) => {
+          gap.current = setTimeout(r, ms);
+        });
 
-      const step = () => {
-        if (gen !== generation.current) return;
-        const { block: b, piece: p } = cursor.current;
-        const el = blocks.current[b];
-        if (!el) {
-          // End of this part of the book.
-          highlight(null);
-          if (live.current.hasNext) {
-            continueIntoNext.current = true;
-            live.current.onNeedNext();
-          } else {
-            setPlaying(false);
-            setFinished(true);
+      (async () => {
+        const voice = live.current.studioVoice;
+        if (voice) {
+          try {
+            setWaiting(true);
+            showDownload.current = true;
+            await getStudio().load(voice);
+            showDownload.current = false;
+            setDownload(null);
+          } catch (e) {
+            showDownload.current = false;
+            if (gen !== generation.current) return;
+            setDownload(null);
+            setStudioError(`Couldn’t load the ${voice.name} voice (${(e as Error).message}). Using the device voice instead.`);
+            setSettings((s) => ({ ...s, voiceURI: null }));
+            live.current.studioVoice = null;
           }
-          return;
         }
-        const heading = el.classList.contains('reader-section-title') || el.tagName === 'H3';
-        const pieces = chunkText(el.textContent ?? '', 220, { heading });
-        if (p >= pieces.length) {
-          cursor.current = { block: b + 1, piece: 0 };
-          step();
-          return;
-        }
-        if (p === 0) highlight(b);
-        const text = pieces[p]!;
-        const u = new SpeechSynthesisUtterance(text);
-        u.lang = live.current.voice?.lang ?? lang;
-        if (live.current.voice) u.voice = live.current.voice;
-        u.rate = live.current.rate;
-        u.onend = () => {
-          if (gen !== generation.current) return;
-          failures.current = 0;
-          cursor.current = { block: b, piece: p + 1 };
-          // Breathe between sentences and paragraphs like a person reading.
-          const pause = pauseAfter(text, { endOfBlock: p + 1 >= pieces.length, heading }) / live.current.rate;
-          gap.current = setTimeout(step, pause);
-        };
-        u.onerror = (e) => {
-          if (gen !== generation.current || e.error === 'interrupted' || e.error === 'canceled') return;
-          // If the voice keeps failing (no speech engine installed), stop instead of racing through the book.
-          if (++failures.current >= 3) {
-            generation.current++;
-            setPlaying(false);
-            setVoiceError(true);
+        while (gen === generation.current) {
+          const { block: b, piece: p } = cursor.current;
+          if (!blocks.current[b]) {
+            // End of this part of the book.
+            highlight(null);
+            setWaiting(false);
+            if (live.current.hasNext) {
+              continueIntoNext.current = true;
+              live.current.onNeedNext();
+            } else {
+              setPlaying(false);
+              setFinished(true);
+            }
             return;
           }
+          const pieces = piecesFor(b);
+          if (p >= pieces.length) {
+            cursor.current = { block: b + 1, piece: 0 };
+            continue;
+          }
+          if (p === 0) highlight(b);
+          const text = pieces[p]!;
+          const rate = live.current.rate;
+          try {
+            if (live.current.studioVoice && studio.current) {
+              const s = studio.current;
+              setWaiting(true); // until the audio for this sentence is ready
+              // Ask for this sentence first, then the next few, so playback never waits on the queue.
+              const done = s.speak(text, rate, () => gen === generation.current && setWaiting(false));
+              s.prefetch(upcoming(b, p, 3), rate);
+              await done;
+            } else {
+              if (!canSpeak) throw Object.assign(new Error('no speech'), { name: 'SpeechError' });
+              await speakDevice(text);
+            }
+            failures = 0;
+          } catch (e) {
+            if (gen !== generation.current || (e as Error).name === 'AbortError') return;
+            // If speech keeps failing (no engine installed), stop instead of racing through the book.
+            if (++failures >= 3) {
+              setPlaying(false);
+              setVoiceError(true);
+              return;
+            }
+          }
+          if (gen !== generation.current) return;
+          const endOfBlock = p + 1 >= pieces.length;
+          const heading = blocks.current[b]!.classList.contains('reader-section-title');
+          // Breathe between sentences and paragraphs like a person reading.
+          await wait(pauseAfter(text, { endOfBlock, heading }) / rate);
+          if (gen !== generation.current) return;
           cursor.current = { block: b, piece: p + 1 };
-          step();
-        };
-        utterance.current = u;
-        window.speechSynthesis.speak(u);
-      };
-      step();
+        }
+      })();
     },
-    [collect, highlight, halt, lang],
+    [collect, highlight, halt, piecesFor, upcoming, getStudio, speakDevice, setSettings],
   );
 
   /** The first paragraph that is at least partly on screen. */
@@ -263,6 +354,19 @@ export function ReadAloudBar({ containerRef, sectionKey, lang, title, author, se
     },
     [collect, playing, speakFrom, highlight],
   );
+
+  // Warm up an already-downloaded AI voice as soon as the player opens, so Play starts quickly.
+  // (A voice that isn't downloaded yet only downloads when the reader presses Play.)
+  useEffect(() => {
+    if (!studioVoice) return;
+    let cancelled = false;
+    isDownloaded(studioVoice).then((yes) => {
+      if (yes && !cancelled) getStudio().load(studioVoice).catch(() => undefined);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [studioVoice, getStudio]);
 
   // A new part of the book has rendered: keep going if we were mid-listen.
   useEffect(() => {
@@ -366,81 +470,115 @@ export function ReadAloudBar({ containerRef, sectionKey, lang, title, author, se
     () => () => {
       generation.current++;
       if (gap.current) clearTimeout(gap.current);
-      window.speechSynthesis.cancel();
+      if (canSpeak) window.speechSynthesis.cancel();
+      studio.current?.dispose();
+      studio.current = null;
       for (const el of document.querySelectorAll('.r-speaking')) el.classList.remove('r-speaking');
     },
     [],
   );
 
-  if (!canSpeak) {
+  const canUseStudio = studioSupported && english;
+  if (!canSpeak && !canUseStudio) {
     return (
       <div className="listen-bar" role="region" aria-label="Listen">
         <p className="listen-note">Your browser can’t read aloud. Try Chrome, Edge or Safari.</p>
         {extra}
-        <button className="icon-btn" onClick={onClose} aria-label="Close player">
+        <button className="icon-btn listen-close" onClick={onClose} aria-label="Close player">
           <Icon name="x" />
         </button>
       </div>
     );
   }
 
-  const natural = isNaturalVoice(voice);
+  const natural = Boolean(studioVoice) || isNaturalVoice(deviceVoice);
+  const pct = download && download.total ? Math.round((download.loaded / download.total) * 100) : null;
+  let heading = voiceError ? 'No voice available' : finished ? 'The end' : playing ? 'Reading aloud' : 'Paused';
+  let detail: ReactNode;
+  if (download && studioVoice) {
+    heading = download.preparing ? `Preparing ${studioVoice.name}…` : `Downloading ${studioVoice.name}${pct != null ? ` · ${pct}%` : '…'}`;
+    detail = download.preparing ? 'Almost ready.' : `One-time download (about ${studioVoice.sizeMb} MB). After this it works offline.`;
+  } else if (studioError) detail = studioError;
+  else if (voiceError) detail = 'Your device has no working text-to-speech voice. Choose a natural AI voice from the list, or install a voice in your system settings.';
+  else if (finished) detail = `You’ve listened to all of ${title}.`;
+  else if (playing && waiting && studioVoice) detail = `${studioVoice.name} is getting ready to read…`;
+  else if (studioVoice) detail = `${studioVoice.name} · natural AI voice · tap any paragraph to jump there.`;
+  else if (natural) detail = 'Natural voice · tap any paragraph to listen from there.';
+  else if (canUseStudio)
+    detail = (
+      <>
+        Sounds robotic?{' '}
+        <button className="link-btn" onClick={() => setSettings({ ...settings, voiceURI: `studio:${STUDIO_VOICES[0]!.id}` })}>
+          Try a natural AI voice ✦
+        </button>
+      </>
+    );
+  else detail = 'Tip: voices marked ★ sound most natural. Tap any paragraph to jump there.';
 
   return (
     <div className="listen-bar" role="region" aria-label="Listen to this book">
-      <div className="listen-main">
-        <button className="icon-btn" onClick={() => skip(-1)} aria-label="Previous paragraph" title="Previous paragraph">
-          <Icon name="skipBack" />
-        </button>
-        <button className="listen-play" onClick={playing ? stop : play} aria-label={playing ? 'Pause' : 'Play'} title={playing ? 'Pause (space)' : 'Play (space)'}>
-          <Icon name={playing ? 'pause' : 'play'} size={24} />
-        </button>
-        <button className="icon-btn" onClick={() => skip(1)} aria-label="Next paragraph" title="Next paragraph">
-          <Icon name="skipForward" />
-        </button>
-      </div>
-      <div className="listen-status" aria-live="polite">
-        <strong>{voiceError ? 'No voice available' : finished ? 'The end' : playing ? 'Reading aloud' : 'Paused'}</strong>
-        <span>
-          {voiceError
-            ? 'Your device has no working text-to-speech voice. Install one in your system settings, or try another voice.'
-            : finished
-              ? `You’ve listened to all of ${title}.`
-              : natural
-                ? 'Natural voice · tap any paragraph to listen from there.'
-                : 'Tip: voices marked ★ sound most natural. Tap any paragraph to jump there.'}
-        </span>
+      <div className="listen-top">
+        <div className="listen-main">
+          <button className="icon-btn" onClick={() => skip(-1)} aria-label="Previous paragraph" title="Previous paragraph">
+            <Icon name="skipBack" />
+          </button>
+          <button className="listen-play" onClick={playing ? stop : play} aria-label={playing ? 'Pause' : 'Play'} title={playing ? 'Pause (space)' : 'Play (space)'}>
+            {playing && (waiting || download) ? <span className="spinner spinner-light" /> : <Icon name={playing ? 'pause' : 'play'} size={24} />}
+          </button>
+          <button className="icon-btn" onClick={() => skip(1)} aria-label="Next paragraph" title="Next paragraph">
+            <Icon name="skipForward" />
+          </button>
+        </div>
+        <div className="listen-status" aria-live="polite">
+          <strong>{heading}</strong>
+          <span>{detail}</span>
+          {download && !download.preparing && pct != null && (
+            <span className="listen-progress" aria-hidden>
+              <span style={{ width: `${pct}%` }} />
+            </span>
+          )}
+        </div>
       </div>
       <div className="listen-options">
         {extra}
-        <label>
-          <span className="sr-only">Speed</span>
-          <select value={settings.rate} onChange={(e) => setSettings({ ...settings, rate: Number(e.target.value) })} aria-label="Reading speed">
-            {RATES.map((r) => (
-              <option key={r} value={r}>
-                {r}×
-              </option>
-            ))}
-          </select>
-        </label>
-        {voices.length > 1 && (
-          <label className="listen-voice">
-            <span className="sr-only">Voice</span>
-            <select value={voice?.voiceURI ?? ''} onChange={(e) => setSettings({ ...settings, voiceURI: e.target.value })} aria-label="Voice">
+        <select value={settings.rate} onChange={(e) => setSettings({ ...settings, rate: Number(e.target.value) })} aria-label="Reading speed">
+          {RATES.map((r) => (
+            <option key={r} value={r}>
+              {r}×
+            </option>
+          ))}
+        </select>
+        <select
+          className="listen-voice"
+          value={studioVoice ? `studio:${studioVoice.id}` : (deviceVoice?.voiceURI ?? '')}
+          onChange={(e) => setSettings({ ...settings, voiceURI: e.target.value || null })}
+          aria-label="Voice"
+        >
+          {canUseStudio && (
+            <optgroup label="✦ Natural AI voices (one-time download)">
+              {STUDIO_VOICES.map((v) => (
+                <option key={v.id} value={`studio:${v.id}`}>
+                  ✦ {v.name} · {v.accent} (AI)
+                </option>
+              ))}
+            </optgroup>
+          )}
+          {canSpeak && voices.length > 0 && (
+            <optgroup label="Voices on this device">
               {voices.map((v) => (
                 <option key={v.voiceURI} value={v.voiceURI}>
                   {isNaturalVoice(v) ? '★ ' : ''}
                   {v.name.replace(/^(Microsoft|Google)\s+/, '').replace(/\s*-\s*English.*$/, '')} ({v.lang})
                 </option>
               ))}
-            </select>
-          </label>
-        )}
+            </optgroup>
+          )}
+        </select>
         {sleepButton}
-        <button className="icon-btn" onClick={onClose} aria-label="Close player" title="Close player">
-          <Icon name="x" />
-        </button>
       </div>
+      <button className="icon-btn listen-close" onClick={onClose} aria-label="Close player" title="Close player">
+        <Icon name="x" />
+      </button>
     </div>
   );
 }

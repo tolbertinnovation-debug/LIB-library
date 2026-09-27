@@ -7,3 +7,4 @@ data/*.db-*
 .DS_Store
 test-results/
 dist-pages/
+client/public/voice/

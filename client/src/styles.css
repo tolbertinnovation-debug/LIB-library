@@ -3498,3 +3498,90 @@ a.tile:hover {
     text-align: left;
   }
 }
+
+/* Listen player layout: controls + status on top, a single scrollable row of options below. */
+.listen-bar {
+  flex-direction: column;
+  align-items: stretch;
+  flex-wrap: nowrap;
+  gap: 8px;
+  padding: 10px 12px;
+}
+.listen-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding-right: 32px;
+}
+.listen-bar .listen-status,
+.listen-human .listen-status {
+  order: 0;
+  flex: 1;
+  flex-basis: auto;
+  min-width: 0;
+  text-align: left;
+}
+.listen-status span:not(.listen-progress) {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.listen-options {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin-left: 0 !important;
+  padding-bottom: 2px;
+}
+.listen-options::-webkit-scrollbar {
+  display: none;
+}
+.listen-options > * {
+  flex: none;
+}
+.listen-options select.listen-voice {
+  max-width: 220px;
+}
+.listen-close {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+}
+.segmented-sm {
+  flex-wrap: nowrap;
+}
+.segmented-sm button {
+  white-space: nowrap;
+}
+.listen-progress {
+  display: block;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--r-line);
+  overflow: hidden;
+  margin-top: 4px;
+}
+.listen-progress span {
+  display: block;
+  height: 100%;
+  background: var(--r-accent);
+  transition: width 0.2s;
+}
+.listen-credit {
+  margin: 0;
+  text-align: left;
+}
+@media (max-width: 600px) {
+  .listen-play {
+    width: 46px;
+    height: 46px;
+  }
+  .listen-main .icon-btn {
+    width: 34px;
+  }
+  .listen-options select.listen-voice {
+    max-width: 170px;
+  }
+}
