@@ -76,6 +76,13 @@ docker run -p 3000:3000 -v library-data:/data -e SECURE_COOKIES=true liberia-lib
 > register with that email — your account becomes a librarian. From then on, librarians can promote
 > others from **Desk → Members**.
 
+### Free reading edition on GitHub Pages
+
+GitHub Pages can’t run the server, so `npm run build:pages` builds a read-only edition: the full
+catalog, search, collections and the in-browser reader for all bundled books, with no accounts or
+lending. `.github/workflows/pages.yml` publishes it on every push to `main` — set
+**Settings → Pages → Source** to **GitHub Actions** once.
+
 ### Deploy to Render
 
 The repo includes a `render.yaml` blueprint. In Render choose **New → Blueprint**, pick this

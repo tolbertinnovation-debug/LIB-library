@@ -4,6 +4,7 @@ import { del, get, patch, post, put } from '../api';
 import { useAuth } from '../auth';
 import { Icon } from '../components/Icon';
 import { useApi, useDebounced, useDocumentTitle, useStoredState, readStorage, writeStorage, invalidate } from '../hooks';
+import { IS_STATIC, NO_SERVER_MESSAGE } from '../staticApi';
 import { useToast } from '../toast';
 import type { BookDetail, Bookmark, Section, TocEntry } from '../types';
 
@@ -301,7 +302,7 @@ export default function Reader() {
 
   const addBookmark = useCallback(async () => {
     if (!user) {
-      toast('Sign in to save bookmarks and notes.', 'info');
+      toast(IS_STATIC ? NO_SERVER_MESSAGE : 'Sign in to save bookmarks and notes.', 'info');
       return;
     }
     if (idx === null) return;

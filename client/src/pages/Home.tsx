@@ -7,6 +7,7 @@ import { LibraryCard } from '../components/LibraryCard';
 import { ErrorState, ShelfRow, SkeletonGrid } from '../components/ui';
 import { compact, readingTime } from '../format';
 import { useApi, useDocumentTitle } from '../hooks';
+import { IS_STATIC } from '../staticApi';
 import type { HomeData } from '../types';
 
 const QUICK = [
@@ -147,7 +148,7 @@ export default function Home() {
         {data && <ShelfRow title="Most borrowed" subtitle="What your neighbours are reading." books={data.popular} to="/browse?sort=popular" />}
         {data && <ShelfRow title="Recently added" books={data.added} to="/browse?sort=added" />}
 
-        {!user && data && (
+        {!user && !IS_STATIC && data && (
           <section className="join-band">
             <div>
               <p className="eyebrow">Free for everyone</p>
